@@ -969,23 +969,7 @@ def main():
             st.markdown("### Interactive Animation")
             fig = create_animated_decile_chart(net_data)
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Animated GIFs (if available)
-            if has_visualizations:
-                st.markdown("### Animated Stacked Area Chart")
-                html = get_gif_html(f'{vis_dir}/net_animated_stacked_area.gif')
-                st.markdown(html, unsafe_allow_html=True)
-                
-                st.markdown("### Animated Bar Chart")
-                html = get_gif_html(f'{vis_dir}/net_animated_bar_chart.gif')
-                st.markdown(html, unsafe_allow_html=True)
-                
-                st.markdown("### Animated Race Chart")
-                html = get_gif_html(f'{vis_dir}/net_animated_race_chart.gif')
-                st.markdown(html, unsafe_allow_html=True)
-            else:
-                st.warning("Pre-rendered animated visualizations not found. Run the visualization script to generate them.")
-        
+           
         with tab2:
             st.markdown('<div class="section-header">Expenditure Distribution (Animated)</div>', unsafe_allow_html=True)
             
@@ -993,23 +977,7 @@ def main():
             st.markdown("### Interactive Animation")
             fig = create_animated_decile_chart(c3_data)
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Animated GIFs (if available)
-            if has_visualizations:
-                st.markdown("### Animated Stacked Area Chart")
-                html = get_gif_html(f'{vis_dir}/c3_animated_stacked_area.gif')
-                st.markdown(html, unsafe_allow_html=True)
-                
-                st.markdown("### Animated Bar Chart")
-                html = get_gif_html(f'{vis_dir}/c3_animated_bar_chart.gif')
-                st.markdown(html, unsafe_allow_html=True)
-                
-                st.markdown("### Animated Race Chart")
-                html = get_gif_html(f'{vis_dir}/c3_animated_race_chart.gif')
-                st.markdown(html, unsafe_allow_html=True)
-            else:
-                st.warning("Pre-rendered animated visualizations not found. Run the visualization script to generate them.")
-    
+           
     # Data Tables page
     elif page == "Data Tables":
         st.markdown('<div class="sub-header">Data Tables</div>', unsafe_allow_html=True)
