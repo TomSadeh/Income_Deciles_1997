@@ -729,21 +729,6 @@ def main():
         
     # Net Income Analysis page
     elif page == "Net Income Analysis":
-        st.markdown('<div class="sub-header">Net Income Distribution Analysis</div>', unsafe_allow_html=True)
-        
-        st.markdown("""
-        This section analyzes how the distribution of households across the 1997 net income deciles 
-        (adjusted for inflation) has changed over time. The charts below show different aspects of these changes.
-        """)
-        
-        # Line chart
-        st.markdown('<div class="section-header">Trends by Decile</div>', unsafe_allow_html=True)
-        fig = create_plotly_line_chart(
-            net_data, 
-            "Distribution of Households by 1997 Net Income Deciles (Adjusted for Inflation)",
-            "Proportion of Households"
-        )
-        st.plotly_chart(fig, use_container_width=True)
         
         st.markdown('<div class="caption">This chart shows how the proportion of households in each 1997 decile has changed over time. Rising lines indicate growing proportions, falling lines indicate shrinking proportions.</div>', unsafe_allow_html=True)
         
@@ -807,21 +792,6 @@ def main():
         
     # Expenditure Analysis page
     elif page == "Expenditure Analysis":
-        st.markdown('<div class="sub-header">Expenditure Distribution Analysis</div>', unsafe_allow_html=True)
-        
-        st.markdown("""
-        This section analyzes how the distribution of households across the 1997 expenditure deciles 
-        (adjusted for inflation) has changed over time. The charts below show different aspects of these changes.
-        """)
-        
-        # Line chart
-        st.markdown('<div class="section-header">Trends by Decile</div>', unsafe_allow_html=True)
-        fig = create_plotly_line_chart(
-            c3_data, 
-            "Distribution of Households by 1997 Expenditure Deciles (Adjusted for Inflation)",
-            "Proportion of Households"
-        )
-        st.plotly_chart(fig, use_container_width=True)
         
         # Stacked area chart
         st.markdown('<div class="section-header">Overall Distribution Change</div>', unsafe_allow_html=True)
