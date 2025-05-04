@@ -601,6 +601,229 @@ def create_animated_decile_chart(data):
     
     return fig
 
+def load_real_data(file_path):
+    """Load the real income/expenditure data from CSV file"""
+    try:
+        # Skip initial comment lines if present
+        with open(file_path, 'r') as f:
+            line = f.readline()
+            skip_rows = 0
+            while line.startswith('#'):
+                skip_rows += 1
+                line = f.readline()
+        
+        # Load data
+        data = pd.read_csv(file_path, skiprows=skip_rows)
+        
+        # Make sure we have the s_seker column for year
+        if 's_seker' in data.columns:
+            # Rename s_seker to year for consistency with other datasets
+            data.rename(columns={'s_seker': 'year'}, inplace=True)
+        elif '' in data.columns and data[''].dtype == int:
+            # Handle unnamed first column that might contain year
+            data.rename(columns={'': 'year'}, inplace=True)
+            
+        # Convert decile columns if they are numbered
+        decile_mapping = {}
+        for i in range(1, 11):
+            if str(i) in data.columns:
+                decile_mapping[str(i)] = f'decile_{i}'
+        
+        if decile_mapping:
+            data.rename(columns=decile_mapping, inplace=True)
+            
+        return data
+    except FileNotFoundError:
+        st.error(f"Error: File {file_path} not found.")
+        return None
+
+def create_plotly_decile_income_chart(data, title, y_axis_title):
+    """Create a Plotly line chart for real income/expenditure values by decile"""
+    decile_cols = [col for col in data.columns if col.startswith('decile_') or col in [str(i) for i in range(1, 11)]]
+    
+    if not decile_cols:
+        decile_cols = [str(i) for i in range(1, 11) if str(i) in data.columns]
+    
+    fig = go.Figure()
+    
+    # Color scale
+    colors = px.colors.sequential.Viridis
+    color_scale = [colors[int(i * (len(colors)-1) / (len(decile_cols)-1))] for i in range(len(decile_cols))]
+    
+    # Add traces for each decile
+    for i, col in enumerate(decile_cols):
+        # Get decile number for the label
+        if col.startswith('decile_'):
+            decile_num = col.split('_')[1]
+        else:
+            decile_num = col
+            
+        fig.add_trace(go.Scatter(
+            x=data['year'], 
+            y=data[col],
+            mode='lines+markers',
+            name=f'Decile {decile_num}',
+            line=dict(color=color_scale[i], width=3),
+            marker=dict(size=8)
+        ))
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Year',
+        yaxis_title=y_axis_title,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        hovermode="x unified",
+        margin=dict(l=20, r=20, t=50, b=20),
+    )
+    
+    return fig
+
+def calculate_relative_growth(data):
+    """Calculate relative growth for each decile from first to last year"""
+    # Identify decile columns
+    decile_cols = [col for col in data.columns if col.startswith('decile_')]
+    if not decile_cols:
+        decile_cols = [str(i) for i in range(1, 11) if str(i) in data.columns]
+    
+    # Get first and last years
+    first_year = data['year'].min()
+    last_year = data['year'].max()
+    
+    # Get values for first and last years
+    first_values = data[data['year'] == first_year][decile_cols].iloc[0]
+    last_values = data[data['year'] == last_year][decile_cols].iloc[0]
+    
+    # Calculate growth
+    growth = (last_values - first_values) / first_values * 100
+    
+    # Create dataframe with growth rates
+    growth_df = pd.DataFrame({
+        'decile': [int(col.split('_')[1]) if col.startswith('decile_') else int(col) for col in decile_cols],
+        'growth_percent': growth.values
+    })
+    
+    return growth_df
+
+def create_plotly_growth_chart(growth_df, title):
+    """Create a bar chart showing relative growth by decile"""
+    fig = go.Figure()
+    
+    # Add bar for each decile
+    colors = []
+    for growth in growth_df['growth_percent']:
+        if growth >= 0:
+            colors.append('green')
+        else:
+            colors.append('red')
+    
+    fig.add_trace(go.Bar(
+        x=growth_df['decile'],
+        y=growth_df['growth_percent'],
+        marker_color=colors,
+        text=[f"{val:.1f}%" for val in growth_df['growth_percent']],
+        textposition='outside',
+    ))
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Decile',
+        xaxis=dict(
+            tickmode='array',
+            tickvals=list(range(1, 11)),
+            ticktext=[f'Decile {i}' for i in range(1, 11)]
+        ),
+        yaxis_title='Growth (%)',
+        margin=dict(l=20, r=20, t=50, b=20),
+    )
+    
+    return fig
+
+def calculate_inequality_ratios(data):
+    """Calculate various inequality ratios from real income data"""
+    # Identify decile columns
+    decile_cols = [col for col in data.columns if col.startswith('decile_')]
+    if not decile_cols:
+        decile_cols = [str(i) for i in range(1, 11) if str(i) in data.columns]
+    
+    # Create dataframe to store ratios
+    ratios = pd.DataFrame(index=data['year'].unique())
+    
+    # Calculate ratios for each year
+    for year in data['year'].unique():
+        year_data = data[data['year'] == year][decile_cols].iloc[0]
+        
+        # Convert col names to integers for sorting if needed
+        if decile_cols[0].startswith('decile_'):
+            col_to_decile = {col: int(col.split('_')[1]) for col in decile_cols}
+        else:
+            col_to_decile = {col: int(col) for col in decile_cols}
+            
+        # Sort by decile number
+        sorted_cols = sorted(decile_cols, key=lambda x: col_to_decile[x])
+        sorted_values = year_data[sorted_cols].values
+        
+        # D10/D1 ratio
+        ratios.at[year, 'D10_D1'] = sorted_values[-1] / sorted_values[0]
+        
+        # D9/D2 ratio
+        ratios.at[year, 'D9_D2'] = sorted_values[-2] / sorted_values[1]
+        
+        # D10/D5 ratio
+        ratios.at[year, 'D10_D5'] = sorted_values[-1] / sorted_values[4]
+        
+        # Top 20% / Bottom 20% ratio
+        top20 = sorted_values[-2:].mean()
+        bottom20 = sorted_values[:2].mean()
+        ratios.at[year, 'Top20_Bottom20'] = top20 / bottom20
+        
+        # Palma ratio (Top 10% / Bottom 40%)
+        top10 = sorted_values[-1]
+        bottom40 = sorted_values[:4].mean()
+        ratios.at[year, 'Palma'] = top10 / bottom40
+    
+    return ratios.reset_index()
+
+def create_plotly_income_ratio_chart(ratio_data, title):
+    """Create a line chart showing inequality ratios over time"""
+    fig = go.Figure()
+    
+    # Add traces for each ratio
+    for col in ratio_data.columns:
+        if col != 'year':
+            fig.add_trace(go.Scatter(
+                x=ratio_data['year'],
+                y=ratio_data[col],
+                mode='lines+markers',
+                name=col,
+                line=dict(width=3),
+                marker=dict(size=8)
+            ))
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Year',
+        yaxis_title='Ratio Value',
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        hovermode="x unified",
+        margin=dict(l=20, r=20, t=50, b=20),
+    )
+    
+    return fig
 def main():
     """Main function for the Streamlit app"""
     
@@ -613,29 +836,34 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Sidebar
-    st.sidebar.header("Navigation")
-    page = st.sidebar.radio(
-        "Select a page",
-        ["Overview", "Net Income Analysis", "Expenditure Analysis", "Inequality Metrics", "Animated Visualizations", "Data Tables"]
-    )
-    
-    # Load data
+   # Load data
     try:
+        # Load ratio data (existing)
         net_data = load_data('net_ratio_in_1997_deciles.csv')
         c3_data = load_data('c3_ratio_in_1997_deciles.csv')
+        
+        # Load real income/expenditure data (new)
+        real_income_data = load_real_data('net_c3_deciles_real.csv')
         
         # Calculate inequality metrics
         net_metrics = calculate_inequality_metrics(net_data)
         c3_metrics = calculate_inequality_metrics(c3_data)
         
-        # Check for visualization directory
-        vis_dir = 'visualizations'
-        has_visualizations = os.path.exists(vis_dir)
+        # Calculate inequality ratios from real data
+        if real_income_data is not None:
+            real_inequality_ratios = calculate_inequality_ratios(real_income_data)
         
     except Exception as e:
         st.error(f"Error loading data: {e}")
         st.stop()
+    
+    # Sidebar
+    st.sidebar.header("Navigation")
+    page = st.sidebar.radio(
+        "Select a page",
+        ["Overview", "Net Income Analysis", "Expenditure Analysis", 
+         "Real Income Analysis", "Inequality Metrics", "Animated Visualizations", "Data Tables"]
+    )
     
     # Overview page
     if page == "Overview":
@@ -977,6 +1205,71 @@ def main():
             st.markdown("### Interactive Animation")
             fig = create_animated_decile_chart(c3_data)
             st.plotly_chart(fig, use_container_width=True)
+            
+    # New page for Real Income Analysis
+    elif page == "Real Income Analysis":
+        if real_income_data is not None:
+            st.markdown('<div class="sub-header">Real Income Analysis</div>', unsafe_allow_html=True)
+            
+            st.markdown("""
+            This section examines actual income values (adjusted for inflation) across different deciles from 1997 to 2022.
+            Unlike the ratio analysis, this shows the actual shekel values for each decile.
+            """)
+            
+            # Real income over time
+            st.markdown('<div class="section-header">Real Income Trends by Decile</div>', unsafe_allow_html=True)
+            fig = create_plotly_decile_income_chart(
+                real_income_data,
+                "Real Income by Decile Over Time (Inflation Adjusted)",
+                "Income (NIS)"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.markdown('<div class="caption">This chart shows how the real income for each decile has changed over time, adjusted for inflation.</div>', unsafe_allow_html=True)
+            
+            # Growth comparison
+            st.markdown('<div class="section-header">Income Growth by Decile</div>', unsafe_allow_html=True)
+            growth_df = calculate_relative_growth(real_income_data)
+            
+            fig = create_plotly_growth_chart(
+                growth_df,
+                "Relative Growth in Real Income by Decile (1997-2022)"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.markdown('<div class="caption">This chart shows the percentage growth in real income for each decile from 1997 to 2022.</div>', unsafe_allow_html=True)
+            
+            # Inequality ratios
+            st.markdown('<div class="section-header">Income Inequality Ratios</div>', unsafe_allow_html=True)
+            
+            fig = create_plotly_income_ratio_chart(
+                real_inequality_ratios,
+                "Income Inequality Ratios Based on Real Income Values"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.markdown('<div class="caption">This chart shows various inequality ratios calculated from real income values. Rising values indicate increasing inequality.</div>', unsafe_allow_html=True)
+            
+            # Key insights
+            st.markdown('<div class="section-header">Key Insights</div>', unsafe_allow_html=True)
+            
+            # Calculate top decile and bottom decile growth
+            top_decile_growth = growth_df.iloc[-1]['growth_percent']
+            bottom_decile_growth = growth_df.iloc[0]['growth_percent']
+            
+            # Find decile with highest growth
+            max_growth_decile = growth_df.loc[growth_df['growth_percent'].idxmax()]
+            
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown(f"""
+            - **Top Decile Growth**: The highest income decile (10) saw {top_decile_growth:.1f}% growth in real terms.
+            - **Bottom Decile Growth**: The lowest income decile (1) saw {bottom_decile_growth:.1f}% growth in real terms.
+            - **Highest Growth**: Decile {int(max_growth_decile['decile'])} saw the largest growth at {max_growth_decile['growth_percent']:.1f}%.
+            - **Inequality Trend**: The ratio between top and bottom deciles changed from {real_inequality_ratios.iloc[0]['D10_D1']:.1f} to {real_inequality_ratios.iloc[-1]['D10_D1']:.1f}.
+            """)
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.error("Real income data not available. Please check the 'net_c3_deciles_real.csv' file.")
            
     # Data Tables page
     elif page == "Data Tables":
@@ -1040,7 +1333,21 @@ def main():
                 "text/csv",
                 key='download-c3-metrics-csv'
             )
-        
+        if real_income_data is not None:
+            tab5 = st.tabs(["Real Income Data"])
+            
+            with tab5:
+                st.markdown('<div class="section-header">Real Income Data</div>', unsafe_allow_html=True)
+                st.dataframe(real_income_data, use_container_width=True)
+                
+                csv = real_income_data.to_csv(index=False)
+                st.download_button(
+                    "Download Real Income Data (CSV)",
+                    csv,
+                    "real_income_data.csv",
+                    "text/csv",
+                    key='download-real-income-csv'
+                )
         # Documentation section
         st.markdown('<div class="section-header">Data Documentation</div>', unsafe_allow_html=True)
         
@@ -1058,6 +1365,6 @@ def main():
         All ratios are calculated based on the 1997 decile thresholds, adjusted for inflation using 
         Israel's CPI for each subsequent year.
         """)
-
+        
 if __name__ == "__main__":
     main()
